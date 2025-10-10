@@ -1,11 +1,18 @@
-import React, {useState} from "react";
+import React, {useContext, useState} from "react";
 import {Link, useNavigate} from "react-router-dom";
 import M from "materialize-css";
+import {UserContext} from "../../App";
 
 const Login: React.FC  = () => {
+    const userContext = useContext(UserContext)
     const navigate = useNavigate();
     const [password, setPassword] = useState("")
     const [email, setEmail] = useState("")
+    if (!userContext) {
+        return <div>Loading...</div> // or handle the null case appropriately
+    }
+
+    const {state, dispatch} = userContext
     const validateEmail = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
     const Login = () => {
         if (!validateEmail.test(email)) {
@@ -31,6 +38,7 @@ const Login: React.FC  = () => {
                 } else {
                     localStorage.setItem("jwt",data.token)
                     localStorage.setItem("user",JSON.stringify(data.user))
+                    dispatch({type: "USER", payload: data.user})
                     M.toast({html: data.message, classes:"#43a047 green darken-1"})
                     navigate("/")
                 }

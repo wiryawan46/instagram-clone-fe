@@ -50,7 +50,7 @@ const CreatePost: React.FC = () => {
                 body: JSON.stringify({
                     title,
                     body,
-                    photo: uploadData.url,
+                    photo: uploadData.fileName,
                 }),
             });
 
