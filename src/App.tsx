@@ -22,7 +22,6 @@ const Routing = () => {
             const user = JSON.parse(localStorage.getItem("user") as string)
             if(user) {
                 context.dispatch({type:"USER",payload:user})
-                navigate("/")
             } else {
                 navigate("/login")
             }
