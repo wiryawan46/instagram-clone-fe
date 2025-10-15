@@ -1,4 +1,4 @@
-import React, {useContext, useEffect, useState} from 'react';
+import React, {useContext, useEffect, useState, FormEvent} from 'react';
 import {Post} from '../../models/post.model';
 import {UserContext} from "../../App";
 
@@ -99,6 +99,30 @@ const Home: React.FC = () => {
             })
     }
 
+    const makeComment = async (text: string, id: string) => {
+        fetch('/comment-post', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + localStorage.getItem('jwt')
+            },
+            body: JSON.stringify({
+                id,
+                text
+            })
+        }).then(res => res.json())
+            .then(result => {
+                const newData = data.map(item => {
+                    if (item._id === id) {
+                        return {...item, ...result.post}  // Merges updated fields while preserving original structure
+                    } else {
+                        return item
+                    }
+                })
+                setData(newData || [])
+            })
+    }
+
     if (loading) {
         return (
             <div className="home" style={{padding: '20px'}}>
@@ -154,13 +178,35 @@ const Home: React.FC = () => {
                             <h6 style={{marginTop: '10px'}}>{item.likes.length} likes</h6>
                             <h6 style={{marginTop: '10px'}}>{item.title}</h6>
                             <p style={{marginBottom: '20px'}}>{item.body}</p>
-                            <div className="input-field">
-                                <input
-                                    type="text"
-                                    placeholder="Add a comment..."
-                                    style={{margin: 0}}
-                                />
-                            </div>
+                            {
+                                item.comments && item.comments.length > 0 && (
+                                    item.comments.map((comment) => (
+                                        <h6>
+                                        <span style={{fontWeight: '500'}}>
+                                            {comment.postedBy.name}
+                                        </span>
+                                            <span style={{marginLeft: '5px'}}>
+                                            {comment.text}
+                                        </span>
+                                        </h6>
+                                    )))
+                            }
+                            <form onSubmit={
+                                (e: FormEvent<HTMLFormElement>) => {
+                                    e.preventDefault()
+                                    const target = e.currentTarget
+                                    const input = target.elements[0] as HTMLInputElement
+                                    console.log(input.value)
+                                }
+                            }>
+                                <div className="input-field">
+                                    <input
+                                        type="text"
+                                        placeholder="Add a comment..."
+                                        style={{margin: 0}}
+                                    />
+                                </div>
+                            </form>
                         </div>
                     </div>
                 ))
