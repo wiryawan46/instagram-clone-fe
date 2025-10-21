@@ -8,14 +8,18 @@ type UserContextType = {
 } | null;
 
 type CommentTextMap = Record<string, string>; // postId -> text
+type DeletingMap = Record<string, boolean>;
 
 const Home: React.FC = () => {
     const [data, setData] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [commentText, setCommentText] = useState<CommentTextMap>({});
+    const [deleting, setDeleting] = useState<DeletingMap>({});
     const context = useContext(UserContext) as UserContextType;
     const me = context?.state ?? null;
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
 
     useEffect(() => {
         const fetchPosts = async () => {
@@ -24,7 +28,6 @@ const Home: React.FC = () => {
                 setError(null);
 
                 const userString = localStorage.getItem("user");
-                const token = localStorage.getItem("jwt");
                 if (!userString || !token) {
                     setError("Please log in to view posts");
                     setLoading(false);
@@ -46,7 +49,7 @@ const Home: React.FC = () => {
             }
         };
         fetchPosts();
-    }, []);
+    }, [token]);
 
     const patchPostInState = (postId: string, updater: (old: Post) => Post) => {
         setData(prev => prev.map(p => (p._id === postId ? updater(p) : p)));
@@ -68,7 +71,7 @@ const Home: React.FC = () => {
             });
             const result = await res.json();
             if (result?.post) {
-                mergeServerPost(id, result.post); // ← MERGE, bukan replace
+                mergeServerPost(id, result.post);
             }
         } catch (e) {
             console.error(e);
@@ -87,14 +90,54 @@ const Home: React.FC = () => {
             });
             const result = await res.json();
             if (result?.post) {
-                mergeServerPost(id, result.post); // ← MERGE, bukan replace
+                mergeServerPost(id, result.post);
             }
         } catch (e) {
             console.error(e);
         }
     };
 
-    // === COMMENT HANDLERS (kunci masalahmu di sini) ===
+    // === DELETE HANDLER ===
+    const deletePost = async (postId: string) => {
+        const confirm = window.confirm("Delete this post permanently?");
+        if (!confirm) return;
+
+        // optimistic remove
+        const prev = data;
+        setDeleting(d => ({ ...d, [postId]: true }));
+        setData(curr => curr.filter(p => p._id !== postId));
+
+        try {
+            const res = await fetch('/delete-post', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem('jwt')
+                },
+                body: JSON.stringify({ postId })
+            });
+
+            if (!res.ok) {
+                // read message for feedback and rollback
+                const msg = await res.text();
+                throw new Error(msg || `Failed with status ${res.status}`);
+            }
+
+            // success → nothing else to do (already removed)
+        } catch (err) {
+            console.error("Failed to delete post:", err);
+            // rollback
+            setData(prev);
+            alert("Failed to delete post. You might not be the owner or server error occurred.");
+        } finally {
+            setDeleting(d => {
+                const { [postId]: _, ...rest } = d;
+                return rest;
+            });
+        }
+    };
+
+    // === COMMENT HANDLERS ===
     const handleCommentChange = (postId: string, e: ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
         setCommentText(prev => ({ ...prev, [postId]: text }));
@@ -105,7 +148,7 @@ const Home: React.FC = () => {
         const text = (commentText[postId] || "").trim();
         if (!text) return;
 
-        // 1) Optimistic UI: langsung tampilkan komentar
+        // optimistic comment
         const tempId = `temp-${Date.now()}`;
         const optimisticComment = {
             _id: tempId,
@@ -118,11 +161,9 @@ const Home: React.FC = () => {
             comments: [...(old.comments || []), optimisticComment as any]
         }));
 
-        // kosongkan input segera biar feel-nya "langsung muncul"
         setCommentText(prev => ({ ...prev, [postId]: "" }));
 
         try {
-            // 2) Panggil API
             const res = await fetch('/comment-post', {
                 method: 'PUT',
                 headers: {
@@ -134,18 +175,18 @@ const Home: React.FC = () => {
 
             const result = await res.json();
 
-            // 3) Sinkronkan dengan data server (lebih aman daripada merge manual)
-            if (result?.post) {
-                mergeServerPost(postId, result.post); // ← MERGE
+            // Backend sends { comm } per your router; merge that. If you change backend to { post }, keep the fallback.
+            const merged = result?.comm || result?.post;
+            if (merged) {
+                mergeServerPost(postId, merged);
             }
         } catch (err) {
             console.error("Failed to comment:", err);
-            // Rollback kalau error
+            // rollback optimistic comment
             patchPostInState(postId, old => ({
                 ...old,
                 comments: (old.comments || []).filter(c => (c as any)._id !== tempId)
             }));
-            // optionally: tampilkan toast
         }
     };
 
@@ -176,53 +217,73 @@ const Home: React.FC = () => {
                     <p>When you follow people, you'll see their photos and videos here.</p>
                 </div>
             ) : (
-                data.map(item => (
-                    <div key={item._id} className="card home-card" style={{ marginBottom: '20px' }}>
-                        <h5 style={{ padding: '15px', margin: 0, borderBottom: '1px solid #eee' }}>
-                            {item.postBy?.name || 'Unknown User'}
-                        </h5>
+                data.map(item => {
+                    const isOwner = me?._id && item.postBy?._id && String(me._id) === String(item.postBy._id);
+                    const isDeleting = !!deleting[item._id];
 
-                        <div className="card-image">
-                            <img
-                                alt="post"
-                                src={item.imageUrl || item.photo}   // ← fallback
-                                style={{ width: '100%', maxHeight: '600px', objectFit: 'contain' }}
-                            />
+                    return (
+                        <div key={item._id} className="card home-card" style={{ marginBottom: '20px', opacity: isDeleting ? 0.5 : 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #eee' }}>
+                                <h5 style={{ margin: 0 }}>{item.postBy?.name || 'Unknown User'}</h5>
+
+                                {me?._id === item.postBy?._id && (
+                                    <i
+                                        className="material-icons"
+                                        title="Delete post"
+                                        onClick={() => !deleting[item._id] && deletePost(item._id)}
+                                        style={{
+                                            cursor: deleting[item._id] ? 'not-allowed' : 'pointer',
+                                            color: deleting[item._id] ? '#ccc' : '#e53935',
+                                            transition: 'color 0.2s ease'
+                                        }}
+                                    >
+                                        close
+                                    </i>
+                                )}
+                            </div>
+
+                            <div className="card-image">
+                                <img
+                                    alt="post"
+                                    src={item.imageUrl || (item as any).photo}
+                                    style={{ width: '100%', maxHeight: '600px', objectFit: 'contain' }}
+                                />
+                            </div>
+
+                            <div className="card-content">
+                                <i className="material-icons" style={{ color: "red", cursor: 'pointer' }}>favorite</i>
+
+                                {(item.likes || []).includes(me?._id)
+                                    ? <i className="material-icons" onClick={() => unLikesPosts(item._id)} style={{ cursor: 'pointer' }}>thumb_down</i>
+                                    : <i className="material-icons" onClick={() => likesPosts(item._id)} style={{ cursor: 'pointer' }}>thumb_up</i>
+                                }
+
+                                <h6 style={{ marginTop: '10px' }}>{(item.likes || []).length} likes</h6>
+                                <h6 style={{ marginTop: '10px' }}>{item.title}</h6>
+                                <p style={{ marginBottom: '20px' }}>{item.body}</p>
+
+                                {item.comments?.length ? item.comments.map((c, idx) => (
+                                    <h6 key={c._id || `c-${idx}`}>
+                                        <span style={{ fontWeight: 500 }}>{c.postedBy?.name || 'Unknown User'}</span>
+                                        <span style={{ marginLeft: 5 }}>{c.text}</span>
+                                    </h6>
+                                )) : null}
+
+                                <form onSubmit={(e) => handleCommentSubmit(e, item._id)}>
+                                    <div className="input-field">
+                                        <input
+                                            type="text"
+                                            placeholder="Add a comment..."
+                                            style={{ margin: 0 }}
+                                            value={commentText[item._id] || ""}
+                                            onChange={(ev) => handleCommentChange(item._id, ev)}
+                                        />
+                                    </div>
+                                </form>
+                            </div>
                         </div>
-
-                        <div className="card-content">
-                            <i className="material-icons" style={{ color: "red", cursor: 'pointer' }}>favorite</i>
-
-                            {item.likes.includes(me?._id)
-                                ? <i className="material-icons" onClick={() => unLikesPosts(item._id)}>thumb_down</i>
-                                : <i className="material-icons" onClick={() => likesPosts(item._id)}>thumb_up</i>
-                            }
-
-                            <h6 style={{ marginTop: '10px' }}>{item.likes.length} likes</h6>
-                            <h6 style={{ marginTop: '10px' }}>{item.title}</h6>
-                            <p style={{ marginBottom: '20px' }}>{item.body}</p>
-
-                            {item.comments?.length ? item.comments.map((c, idx) => (
-                                <h6 key={c._id || `c-${idx}`}>
-                                    <span style={{ fontWeight: 500 }}>{c.postedBy?.name || 'Unknown User'}</span>
-                                    <span style={{ marginLeft: 5 }}>{c.text}</span>
-                                </h6>
-                            )) : null}
-
-                            <form onSubmit={(e) => handleCommentSubmit(e, item._id)}>
-                                <div className="input-field">
-                                    <input
-                                        type="text"
-                                        placeholder="Add a comment..."
-                                        style={{ margin: 0 }}
-                                        value={commentText[item._id] || ""}
-                                        onChange={(ev) => handleCommentChange(item._id, ev)}
-                                    />
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                ))
+                    );
+                })
             )}
         </div>
     );
