@@ -1,6 +1,7 @@
 import React, {useContext, useEffect, useState, FormEvent, ChangeEvent} from 'react';
 import {Post} from '../../models/post.model';
 import {UserContext} from "../../App";
+import {Link} from "react-router-dom";
 
 type UserContextType = {
     state: any;
@@ -35,7 +36,7 @@ const Home: React.FC = () => {
                 }
 
                 const res = await fetch("/posts", {
-                    headers: { Authorization: "Bearer " + token }
+                    headers: {Authorization: "Bearer " + token}
                 });
                 if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`);
 
@@ -56,7 +57,7 @@ const Home: React.FC = () => {
     };
 
     const mergeServerPost = (postId: string, serverPost: Partial<Post>) => {
-        patchPostInState(postId, old => ({ ...old, ...serverPost }));
+        patchPostInState(postId, old => ({...old, ...serverPost}));
     };
 
     const likesPosts = async (id: string) => {
@@ -67,7 +68,7 @@ const Home: React.FC = () => {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + localStorage.getItem('jwt')
                 },
-                body: JSON.stringify({ postId: id })
+                body: JSON.stringify({postId: id})
             });
             const result = await res.json();
             if (result?.post) {
@@ -86,7 +87,7 @@ const Home: React.FC = () => {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + localStorage.getItem('jwt')
                 },
-                body: JSON.stringify({ postId: id })
+                body: JSON.stringify({postId: id})
             });
             const result = await res.json();
             if (result?.post) {
@@ -104,7 +105,7 @@ const Home: React.FC = () => {
 
         // optimistic remove
         const prev = data;
-        setDeleting(d => ({ ...d, [postId]: true }));
+        setDeleting(d => ({...d, [postId]: true}));
         setData(curr => curr.filter(p => p._id !== postId));
 
         try {
@@ -114,7 +115,7 @@ const Home: React.FC = () => {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + localStorage.getItem('jwt')
                 },
-                body: JSON.stringify({ postId })
+                body: JSON.stringify({postId})
             });
 
             if (!res.ok) {
@@ -131,7 +132,7 @@ const Home: React.FC = () => {
             alert("Failed to delete post. You might not be the owner or server error occurred.");
         } finally {
             setDeleting(d => {
-                const { [postId]: _, ...rest } = d;
+                const {[postId]: _, ...rest} = d;
                 return rest;
             });
         }
@@ -140,7 +141,7 @@ const Home: React.FC = () => {
     // === COMMENT HANDLERS ===
     const handleCommentChange = (postId: string, e: ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
-        setCommentText(prev => ({ ...prev, [postId]: text }));
+        setCommentText(prev => ({...prev, [postId]: text}));
     };
 
     const handleCommentSubmit = async (e: FormEvent<HTMLFormElement>, postId: string) => {
@@ -153,7 +154,7 @@ const Home: React.FC = () => {
         const optimisticComment = {
             _id: tempId,
             text,
-            postedBy: { _id: me?._id, name: me?.name || 'You' }
+            postedBy: {_id: me?._id, name: me?.name || 'You'}
         };
 
         patchPostInState(postId, old => ({
@@ -161,7 +162,7 @@ const Home: React.FC = () => {
             comments: [...(old.comments || []), optimisticComment as any]
         }));
 
-        setCommentText(prev => ({ ...prev, [postId]: "" }));
+        setCommentText(prev => ({...prev, [postId]: ""}));
 
         try {
             const res = await fetch('/comment-post', {
@@ -170,7 +171,7 @@ const Home: React.FC = () => {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + localStorage.getItem('jwt')
                 },
-                body: JSON.stringify({ id: postId, text })
+                body: JSON.stringify({id: postId, text})
             });
 
             const result = await res.json();
@@ -192,28 +193,31 @@ const Home: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="home" style={{ padding: '20px' }}>
-                <div className="progress"><div className="indeterminate"></div></div>
+            <div className="home" style={{padding: '20px'}}>
+                <div className="progress">
+                    <div className="indeterminate"></div>
+                </div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="card-panel" style={{ textAlign: 'center', padding: '40px' }}>
-                <i className="material-icons large" style={{ color: '#9e9e9e', marginBottom: '20px' }}>photo_camera</i>
-                <h5 style={{ color: '#9e9e9e' }}>No Posts Yet</h5>
+            <div className="card-panel" style={{textAlign: 'center', padding: '40px'}}>
+                <i className="material-icons large" style={{color: '#9e9e9e', marginBottom: '20px'}}>photo_camera</i>
+                <h5 style={{color: '#9e9e9e'}}>No Posts Yet</h5>
                 <p>When you follow people, you'll see their photos and videos here.</p>
             </div>
         );
     }
 
     return (
-        <div className="home" style={{ padding: '20px' }}>
+        <div className="home" style={{padding: '20px'}}>
             {data.length === 0 ? (
-                <div className="card-panel" style={{ textAlign: 'center', padding: '40px' }}>
-                    <i className="material-icons large" style={{ color: '#9e9e9e', marginBottom: '20px' }}>photo_camera</i>
-                    <h5 style={{ color: '#9e9e9e' }}>No Posts Yet</h5>
+                <div className="card-panel" style={{textAlign: 'center', padding: '40px'}}>
+                    <i className="material-icons large"
+                       style={{color: '#9e9e9e', marginBottom: '20px'}}>photo_camera</i>
+                    <h5 style={{color: '#9e9e9e'}}>No Posts Yet</h5>
                     <p>When you follow people, you'll see their photos and videos here.</p>
                 </div>
             ) : (
@@ -222,11 +226,25 @@ const Home: React.FC = () => {
                     const isDeleting = !!deleting[item._id];
 
                     return (
-                        <div key={item._id} className="card home-card" style={{ marginBottom: '20px', opacity: isDeleting ? 0.5 : 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #eee' }}>
-                                <h5 style={{ margin: 0 }}>{item.postBy?.name || 'Unknown User'}</h5>
+                        <div key={item._id} className="card home-card"
+                             style={{marginBottom: '20px', opacity: isDeleting ? 0.5 : 1}}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '15px',
+                                borderBottom: '1px solid #eee'
+                            }}>
+                                <h5 style={{margin: 0}}>
+                                    <Link to={item.postBy?._id && item.postBy._id !== me?._id
+                                        ? "/profile/" + item.postBy._id
+                                        : "/profile"
+                                    }>
+                                        {item.postBy?.name || 'Unknown User'}
+                                    </Link>
+                                </h5>
 
-                                {me?._id === item.postBy?._id && (
+                                {me?._id && item.postBy?._id && String(me._id) === String(item.postBy._id) && (
                                     <i
                                         className="material-icons"
                                         title="Delete post"
@@ -246,26 +264,28 @@ const Home: React.FC = () => {
                                 <img
                                     alt="post"
                                     src={item.imageUrl || (item as any).photo}
-                                    style={{ width: '100%', maxHeight: '600px', objectFit: 'contain' }}
+                                    style={{width: '100%', maxHeight: '600px', objectFit: 'contain'}}
                                 />
                             </div>
 
                             <div className="card-content">
-                                <i className="material-icons" style={{ color: "red", cursor: 'pointer' }}>favorite</i>
+                                <i className="material-icons" style={{color: "red", cursor: 'pointer'}}>favorite</i>
 
                                 {(item.likes || []).includes(me?._id)
-                                    ? <i className="material-icons" onClick={() => unLikesPosts(item._id)} style={{ cursor: 'pointer' }}>thumb_down</i>
-                                    : <i className="material-icons" onClick={() => likesPosts(item._id)} style={{ cursor: 'pointer' }}>thumb_up</i>
+                                    ? <i className="material-icons" onClick={() => unLikesPosts(item._id)}
+                                         style={{cursor: 'pointer'}}>thumb_down</i>
+                                    : <i className="material-icons" onClick={() => likesPosts(item._id)}
+                                         style={{cursor: 'pointer'}}>thumb_up</i>
                                 }
 
-                                <h6 style={{ marginTop: '10px' }}>{(item.likes || []).length} likes</h6>
-                                <h6 style={{ marginTop: '10px' }}>{item.title}</h6>
-                                <p style={{ marginBottom: '20px' }}>{item.body}</p>
+                                <h6 style={{marginTop: '10px'}}>{(item.likes || []).length} likes</h6>
+                                <h6 style={{marginTop: '10px'}}>{item.title}</h6>
+                                <p style={{marginBottom: '20px'}}>{item.body}</p>
 
                                 {item.comments?.length ? item.comments.map((c, idx) => (
                                     <h6 key={c._id || `c-${idx}`}>
-                                        <span style={{ fontWeight: 500 }}>{c.postedBy?.name || 'Unknown User'}</span>
-                                        <span style={{ marginLeft: 5 }}>{c.text}</span>
+                                        <span style={{fontWeight: 500}}>{c.postedBy?.name || 'Unknown User'}</span>
+                                        <span style={{marginLeft: 5}}>{c.text}</span>
                                     </h6>
                                 )) : null}
 
@@ -274,7 +294,7 @@ const Home: React.FC = () => {
                                         <input
                                             type="text"
                                             placeholder="Add a comment..."
-                                            style={{ margin: 0 }}
+                                            style={{margin: 0}}
                                             value={commentText[item._id] || ""}
                                             onChange={(ev) => handleCommentChange(item._id, ev)}
                                         />
