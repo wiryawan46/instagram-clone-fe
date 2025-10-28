@@ -1,7 +1,8 @@
-import React, {useEffect, useState} from "react";
+import React, {useContext, useEffect, useState} from "react";
 import {useParams} from "react-router-dom";
 import {Post} from "../../models/post.model";
 import {User} from "../../models/user.model";
+import {UserContext} from "../../App";
 
 // Add this interface at the top of the file, after the imports
 interface UserProfileResponse {
@@ -13,6 +14,8 @@ interface UserProfileResponse {
 const UserProfile: React.FC = () => {
     const [res, setResult] = useState<UserProfileResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const context = useContext(UserContext);
+    const { state, dispatch } = context || { state: null, dispatch: null };
     const {userId} = useParams()
 
     // Safely access state
@@ -60,6 +63,62 @@ const UserProfile: React.FC = () => {
         }
     }, [userId]);
 
+    const followUser = async () => {
+        fetch("/follow", {
+            method: "PUT",
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({followId: userId}),
+        })
+            .then(res => res.json())
+            .then(result => {
+                console.log(result);
+                // Update the state with the new data, handling null prevState case
+                setResult(prevState => {
+                    if (!prevState) {
+                        return {
+                            success: true,
+                            user: result.user,
+                            posts: result.posts || []
+                        };
+                    }
+                    return {
+                        ...prevState,
+                        user: result.user,
+                        posts: result.posts || [],
+                        success: true
+                    };
+                });
+
+                // Update global user state using dispatch
+                if (result.user) {
+                    context?.dispatch({
+                        type: "USER",
+                        payload: result.user
+                    });
+                }
+
+                // Update localStorage if needed (assuming the JWT might be refreshed)
+                if (result.token) {
+                    localStorage.setItem("jwt", result.token);
+                    // Also update user data in localStorage if needed
+                    localStorage.setItem("user", JSON.stringify(result.user));
+                }
+            })
+            .catch(err => {
+                console.error("Error following user:", err);
+                setResult(prevState => {
+                    if (!prevState) return null;
+                    return {
+                        ...prevState,
+                        success: false
+                    };
+                });
+            });
+    }
+
 
     if (loading) {
         return (
@@ -96,9 +155,14 @@ const UserProfile: React.FC = () => {
                     <h5 style={{margin: "4px 0 8px"}}>{res?.user?.email ?? "no email"}</h5>
                     <div style={{display: "flex", gap: 16, flexWrap: "wrap"}}>
                         <h6 style={{margin: 0}}>{res?.posts?.length ?? 0}posts</h6>
-                        <h6 style={{margin: 0}}>100 followers</h6>
-                        <h6 style={{margin: 0}}>100 following</h6>
+                        <h6 style={{margin: 0}}>{res?.user?.followers?.length ?? 0} followers</h6>
+                        <h6 style={{margin: 0}}>{res?.user?.following?.length ?? 0} following</h6>
                     </div>
+                    <button className="btn waves-effect waves-light #64b5f6 blue draken-1"
+                            onClick={() => followUser()}
+                    >
+                        Follow
+                    </button>
                 </div>
             </div>
 
